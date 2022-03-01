@@ -1,0 +1,81 @@
+package com.jmz.onlineassessmentexamportal.controller;
+
+import com.jmz.onlineassessmentexamportal.config.JwtUtil;
+import com.jmz.onlineassessmentexamportal.entity.JwtRequest;
+import com.jmz.onlineassessmentexamportal.entity.JwtResponse;
+import com.jmz.onlineassessmentexamportal.entity.User;
+import com.jmz.onlineassessmentexamportal.helper.UserNotFoundException;
+import com.jmz.onlineassessmentexamportal.services.impl.UserDetailServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.security.Principal;
+
+@RestController
+public class AuthenticateController
+{
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private UserDetailServiceImpl userDetailService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    //generate tokens
+
+    @PostMapping("/generate-token")
+    public ResponseEntity<?> generateToken(@RequestBody JwtRequest jwtRequest) throws Exception {
+
+//        System.out.println(jwtRequest.getUsername()+" "+jwtRequest.getPassword());
+        try {
+            authenticate(jwtRequest.getUsername(),jwtRequest.getPassword());
+        }
+        catch (UserNotFoundException e)
+        {
+            e.printStackTrace();
+            throw new Exception("User not found exception");
+        }
+        //authenticate
+        UserDetails userDetails = this.userDetailService.loadUserByUsername(jwtRequest.getUsername());
+        String token = this.jwtUtil.generateToken(userDetails);
+        return ResponseEntity.ok(new JwtResponse(token));
+    }
+
+
+    private void authenticate(String username,String password) throws Exception {
+
+        try {
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username,password));
+        }
+        catch (DisabledException de)
+        {
+            throw new Exception("USER DISABLED "+ de.getMessage());
+        }
+        catch (BadCredentialsException e)
+        {
+            throw new Exception("Invalid Credentials "+e.getMessage());
+        }
+    }
+
+
+    //returns the detail of current user
+    @GetMapping("/current-user")
+    public User getCurrentUser(Principal principal)
+    {
+              return ((User)this.userDetailService.loadUserByUsername(principal.getName()));
+    }
+
+}
